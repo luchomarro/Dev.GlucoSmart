@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '/pantallas/dashboard.dart';
 import '/pantallas/historial.dart';
 import '/pantallas/registro_medicion.dart';
+import '/pantallas/recomendaciones.dart';
 import '/pantallas/perfil.dart';
 
 class NavegacionPrincipal extends StatefulWidget {
@@ -14,10 +15,11 @@ class NavegacionPrincipal extends StatefulWidget {
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 0;
 
-  // Lista de las 3 pantallas principales
+  // Lista de las 4 pantallas principales
   final List<Widget> _pantallas = [
     const DashboardScreen(),
     const HistorialScreen(),
+    const RecomendacionesScreen(),
     const PerfilScreen(),
   ];
 
@@ -37,12 +39,12 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
         },
         child: const Icon(Icons.add, size: 30),
       ),
-      // Lo colocamos a la derecha para que no estorbe a los 3 botones de abajo
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
 
-      // Barra de navegación inferior con los 3 botones
+      // Barra de navegación inferior con los 4 botones
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
+        type: BottomNavigationBarType.fixed, // Mantiene todos los íconos estáticos y visibles
         currentIndex: _indiceActual,
         onTap: (index) {
           setState(() {
@@ -60,6 +62,10 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: "Historial",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: "Notificaciones",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
