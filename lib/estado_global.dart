@@ -1,20 +1,34 @@
 import 'package:flutter/material.dart';
 
-// --- NUEVO: MODELO DE PERFIL ---
+// --- MODELO DE PERFIL ---
 class PerfilUsuario {
   String nombre;
-  int? edad;
-  double? peso;
-  double? altura;
+  DateTime? fechaNacimiento;
+  double? peso; // en kg
+  double? altura; // en metros
+  String telefono;
+  List<String> condicionesMedicas;
   bool notificacionesActivas;
+  String? fotoPerfilPath; // Memoria para la ruta de la foto en el celular
 
   PerfilUsuario({
     required this.nombre,
-    this.edad,
+    this.fechaNacimiento,
     this.peso,
     this.altura,
+    this.telefono = '',
+    this.condicionesMedicas = const [],
     this.notificacionesActivas = true,
+    this.fotoPerfilPath,
   });
+
+  // Cálculo automático del IMC (Índice de Masa Corporal)
+  double get imc {
+    if (peso != null && altura != null && altura! > 0) {
+      return peso! / (altura! * altura!);
+    }
+    return 0.0;
+  }
 }
 
 // --- MODELO DE REGISTRO ---
@@ -26,14 +40,7 @@ class RegistroSalud {
   DateTime fecha;
   String notas;
 
-  RegistroSalud({
-    required this.id,
-    this.glucosa,
-    this.presionSis,
-    this.presionDia,
-    required this.fecha,
-    this.notas = ''
-  });
+  RegistroSalud({required this.id, this.glucosa, this.presionSis, this.presionDia, required this.fecha, this.notas = ''});
 
   bool get tieneGlucosa => glucosa != null;
   bool get tienePresion => presionSis != null && presionDia != null;
@@ -46,7 +53,14 @@ class AppState extends ChangeNotifier {
   AppState._interno();
 
   // 1. Datos del usuario por defecto
-  PerfilUsuario perfil = PerfilUsuario(nombre: "Luis", edad: 25, peso: 75.5, altura: 1.75);
+  PerfilUsuario perfil = PerfilUsuario(
+    nombre: "Luis",
+    fechaNacimiento: DateTime(1995, 11, 14),
+    peso: 105.0,
+    altura: 1.77,
+    telefono: "",
+    condicionesMedicas: [],
+  );
 
   // 2. Historial de prueba
   List<RegistroSalud> registros = [
@@ -57,13 +71,11 @@ class AppState extends ChangeNotifier {
     RegistroSalud(id: '5', glucosa: 95, presionSis: 115, presionDia: 75, fecha: DateTime.now().subtract(const Duration(days: 30)), notas: 'Hace 4 semanas'),
   ];
 
-  // --- MÉTODOS DE PERFIL ---
   void actualizarPerfil(PerfilUsuario nuevoPerfil) {
     perfil = nuevoPerfil;
-    notifyListeners(); // Avisa al Dashboard que el nombre o datos cambiaron
+    notifyListeners();
   }
 
-  // --- MÉTODOS DE REGISTROS ---
   void agregarRegistro(RegistroSalud nuevo) {
     registros.insert(0, nuevo);
     registros.sort((a, b) => b.fecha.compareTo(a.fecha));
