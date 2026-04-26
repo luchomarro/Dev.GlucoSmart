@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '/estado_global.dart';
 
 class PerfilScreen extends StatefulWidget {
@@ -10,158 +13,339 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen> {
   final _nombreCtrl = TextEditingController();
-  final _edadCtrl = TextEditingController();
+  final _telefonoCtrl = TextEditingController();
   final _pesoCtrl = TextEditingController();
   final _alturaCtrl = TextEditingController();
-  bool _notificaciones = true;
+
+  DateTime? _fechaNac;
+  List<String> _condicionesSeleccionadas = [];
+  String? _rutaFoto;
+
+  final Color _colorPrincipal = const Color(0xFF5AB1E6);
+  final Color _colorTextoGris = const Color(0xFF757575);
+
+  final List<String> _opcionesCondiciones = [
+    'Obesidad', 'Familiares con diabetes', 'Hipertensión',
+    'Colesterol alto', 'Sedentarismo', 'SOP'
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Cargar los datos actuales del cerebro
     _nombreCtrl.text = appState.perfil.nombre;
-    _edadCtrl.text = appState.perfil.edad?.toString() ?? '';
+    _telefonoCtrl.text = appState.perfil.telefono;
     _pesoCtrl.text = appState.perfil.peso?.toString() ?? '';
     _alturaCtrl.text = appState.perfil.altura?.toString() ?? '';
-    _notificaciones = appState.perfil.notificacionesActivas;
+    _fechaNac = appState.perfil.fechaNacimiento;
+    _condicionesSeleccionadas = List.from(appState.perfil.condicionesMedicas);
+    _rutaFoto = appState.perfil.fotoPerfilPath;
+  }
+
+  Future<void> _cambiarFoto() async {
+    final picker = ImagePicker();
+    final XFile? imagenSeleccionada = await picker.pickImage(source: ImageSource.gallery);
+
+    if (imagenSeleccionada != null) {
+      setState(() {
+        _rutaFoto = imagenSeleccionada.path;
+      });
+      _guardarCambios();
+    }
+  }
+
+  Future<void> _seleccionarFecha(BuildContext context) async {
+    final DateTime? fechaElegida = await showDatePicker(
+      context: context,
+      initialDate: _fechaNac ?? DateTime(1990),
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now(),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: _colorPrincipal)),
+        child: child!,
+      ),
+    );
+    if (fechaElegida != null) setState(() => _fechaNac = fechaElegida);
+  }
+
+  Future<void> _abrirTecladoEspecial(String titulo, String sufijo, TextEditingController ctrl) async {
+    String valor = ctrl.text;
+
+    final resultado = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+              builder: (context, setStateDialog) {
+
+                Widget tecla(String texto) {
+                  return InkWell(
+                    onTap: () {
+                      setStateDialog(() {
+                        if (texto == '⌫') {
+                          if (valor.isNotEmpty) valor = valor.substring(0, valor.length - 1);
+                        } else if (texto == '.') {
+                          if (!valor.contains('.')) valor += '.';
+                        } else {
+                          if (valor.length < 5) valor += texto;
+                        }
+                      });
+                    },
+                    child: Center(
+                      child: texto == '⌫'
+                          ? const Icon(Icons.backspace_outlined, size: 28, color: Colors.black54)
+                          : Text(texto, style: const TextStyle(fontSize: 32, color: Colors.black54)),
+                    ),
+                  );
+                }
+
+                return Dialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Container(
+                    padding: const EdgeInsets.only(top: 24),
+                    width: 300,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(titulo, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Text(valor.isEmpty ? "0" : valor, style: const TextStyle(fontSize: 32, color: Colors.black87)),
+                                  const Spacer(),
+                                  Text(sufijo, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                                ],
+                              ),
+                              Divider(color: _colorPrincipal, thickness: 2),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        GridView.count(
+                          shrinkWrap: true, crossAxisCount: 3, childAspectRatio: 1.5,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            tecla('1'), tecla('2'), tecla('3'),
+                            tecla('4'), tecla('5'), tecla('6'),
+                            tecla('7'), tecla('8'), tecla('9'),
+                            tecla('⌫'), tecla('0'), tecla('.'),
+                          ],
+                        ),
+                        const Divider(height: 0),
+                        Row(
+                          children: [
+                            Expanded(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: Colors.grey, fontSize: 16)))),
+                            Container(width: 1, height: 48, color: Colors.grey.shade300),
+                            Expanded(child: TextButton(onPressed: () => Navigator.pop(context, valor), child: Text("ACEPTAR", style: TextStyle(color: _colorPrincipal, fontSize: 16)))),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              }
+          );
+        }
+    );
+
+    if (resultado != null) {
+      setState(() {
+        ctrl.text = resultado;
+      });
+    }
   }
 
   void _guardarCambios() {
     final nuevoPerfil = PerfilUsuario(
       nombre: _nombreCtrl.text.isNotEmpty ? _nombreCtrl.text : "Usuario",
-      edad: int.tryParse(_edadCtrl.text),
+      fechaNacimiento: _fechaNac,
+      telefono: _telefonoCtrl.text,
       peso: double.tryParse(_pesoCtrl.text),
       altura: double.tryParse(_alturaCtrl.text),
-      notificacionesActivas: _notificaciones,
+      condicionesMedicas: _condicionesSeleccionadas,
+      fotoPerfilPath: _rutaFoto,
     );
 
     appState.actualizarPerfil(nuevoPerfil);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Perfil actualizado"), backgroundColor: Color(0xFF2F80ED)),
+        SnackBar(content: const Text("Perfil médico guardado"), backgroundColor: _colorPrincipal)
     );
-  }
-
-  void _cerrarSesion() {
-    // Te devuelve a la pantalla de bienvenida destruyendo el historial de navegación
-    Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F8FF),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Mi Perfil", style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF12305B))),
-        backgroundColor: Colors.transparent, elevation: 0,
-        automaticallyImplyLeading: false, // Quita flecha atrás porque es pestaña principal
+        title: Text("Perfil", style: TextStyle(color: _colorPrincipal, fontSize: 20, fontWeight: FontWeight.w500)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: IconThemeData(color: _colorPrincipal), // Da color celeste a la flecha de regreso
+        actions: [IconButton(icon: Icon(Icons.settings_outlined, color: _colorPrincipal), onPressed: () {})],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Foto de perfil
-            const Center(
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Color(0xFFEAF3FF),
-                child: Icon(Icons.person, size: 50, color: Color(0xFF2F80ED)),
+            const SizedBox(height: 20),
+
+            // --- FOTO DE PERFIL CON GALERÍA ---
+            Center(
+              child: GestureDetector(
+                onTap: _cambiarFoto,
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 45,
+                      backgroundColor: _colorPrincipal.withOpacity(0.8),
+                      backgroundImage: _rutaFoto != null ? FileImage(File(_rutaFoto!)) : null,
+                      child: _rutaFoto == null ? const Icon(Icons.camera_alt_outlined, size: 40, color: Colors.white) : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Text("Editar", style: TextStyle(color: _colorPrincipal, fontSize: 16)),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),
 
-            // Formulario
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))]),
+            // --- LISTA DE CAMPOS ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildInput("Nombre", _nombreCtrl, Icons.person_outline),
-                  Row(
-                    children: [
-                      Expanded(child: _buildInput("Edad", _edadCtrl, Icons.cake_outlined, isNumber: true)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildInput("Peso (kg)", _pesoCtrl, Icons.monitor_weight_outlined, isNumber: true)),
-                    ],
-                  ),
-                  _buildInput("Altura (m)", _alturaCtrl, Icons.height, isNumber: true),
+                  _buildFilaTexto("Nombre*", ctrl: _nombreCtrl),
+                  _buildFilaTexto("Teléfono", ctrl: _telefonoCtrl, isNumber: true),
 
-                  const Divider(height: 32),
-
-                  // Switch de Notificaciones
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.notifications_active_outlined, color: Color(0xFF12305B)),
-                          SizedBox(width: 8),
-                          Text("Notificaciones", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
-                        ],
-                      ),
-                      Switch(
-                        value: _notificaciones,
-                        activeColor: const Color(0xFF2F80ED),
-                        onChanged: (val) {
-                          setState(() { _notificaciones = val; });
-                        },
-                      ),
-                    ],
-                  ),
+                  _buildFilaBoton("Fecha de nacimiento*", _fechaNac != null ? DateFormat('dd/MM/yyyy').format(_fechaNac!) : "", () => _seleccionarFecha(context)),
+                  _buildFilaBoton("Peso", _pesoCtrl.text.isNotEmpty ? "${_pesoCtrl.text} Kg" : "", () => _abrirTecladoEspecial("Kg", "Kg", _pesoCtrl)),
+                  _buildFilaBoton("Altura", _alturaCtrl.text.isNotEmpty ? "${_alturaCtrl.text} m" : "", () => _abrirTecladoEspecial("Metros", "m", _alturaCtrl)),
 
                   const SizedBox(height: 24),
 
-                  // Botón Guardar
-                  SizedBox(
-                    width: double.infinity, height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2F80ED), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      onPressed: _guardarCambios,
-                      child: const Text("Guardar Cambios", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  // --- CONDICIONES MÉDICAS ---
+                  Text("Condiciones Médicas*", style: TextStyle(fontSize: 16, color: _colorTextoGris, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: _opcionesCondiciones.map((condicion) {
+                      final isSelected = _condicionesSeleccionadas.contains(condicion);
+                      return FilterChip(
+                        label: Text(condicion),
+                        selected: isSelected,
+                        selectedColor: _colorPrincipal.withOpacity(0.2),
+                        checkmarkColor: _colorPrincipal,
+                        backgroundColor: Colors.grey[100],
+                        labelStyle: TextStyle(color: isSelected ? _colorPrincipal : _colorTextoGris),
+                        side: BorderSide(color: isSelected ? _colorPrincipal : Colors.transparent),
+                        onSelected: (bool selected) {
+                          setState(() {
+                            if (selected) _condicionesSeleccionadas.add(condicion);
+                            else _condicionesSeleccionadas.remove(condicion);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // --- BOTONES INFERIORES ---
+                  Center(
+                    child: SizedBox(
+                      width: 200, height: 45,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: _colorPrincipal,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            elevation: 0
+                        ),
+                        onPressed: _guardarCambios,
+                        child: const Text("Guardar", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
                     ),
-                  )
+                  ),
+                  const SizedBox(height: 24),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _botonDelineado("Cerrar sesión", _colorPrincipal, () {
+                        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                      }),
+                      _botonDelineado("Cambiar contraseña", const Color(0xFFE53935), () {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enlace enviado al correo")));
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 60),
                 ],
               ),
             ),
-
-            const SizedBox(height: 32),
-
-            // Botón Cerrar Sesión
-            SizedBox(
-              width: double.infinity, height: 50,
-              child: TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF3B30)), // Rojo vibrante
-                onPressed: _cerrarSesion,
-                icon: const Icon(Icons.logout),
-                label: const Text("Cerrar Sesión", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ),
-            const SizedBox(height: 80), // Espacio para el menú inferior
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInput(String label, TextEditingController ctrl, IconData icon, {bool isNumber = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+  // WIDGETS REUTILIZABLES DE FILA
+  Widget _buildFilaTexto(String titulo, {required TextEditingController ctrl, bool isNumber = false}) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            children: [
+              Text(titulo, style: TextStyle(fontSize: 16, color: _colorTextoGris, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: ctrl, textAlign: TextAlign.right,
+                  keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                  style: const TextStyle(fontSize: 16, color: Colors.black87),
+                  decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.zero, border: InputBorder.none),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFEEEEEE), thickness: 1),
+      ],
+    );
+  }
+
+  Widget _buildFilaBoton(String titulo, String valor, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
-          const SizedBox(height: 8),
-          TextField(
-            controller: ctrl,
-            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: const Color(0xFF6B7280)),
-              filled: true, fillColor: const Color(0xFFF8FBFF),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(titulo, style: TextStyle(fontSize: 16, color: _colorTextoGris, fontWeight: FontWeight.bold)),
+                Text(valor, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+              ],
             ),
           ),
+          const Divider(height: 1, color: Color(0xFFEEEEEE), thickness: 1),
         ],
       ),
+    );
+  }
+
+  Widget _botonDelineado(String texto, Color color, VoidCallback onPressed) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+          foregroundColor: color, side: BorderSide(color: color),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+      ),
+      onPressed: onPressed,
+      child: Text(texto, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 }
