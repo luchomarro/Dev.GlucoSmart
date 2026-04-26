@@ -12,8 +12,9 @@ class NavegacionPrincipal extends StatefulWidget {
 }
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
-  int _indiceSeleccionado = 0;
+  int _indiceActual = 0;
 
+  // Lista de las 3 pantallas principales
   final List<Widget> _pantallas = [
     const DashboardScreen(),
     const HistorialScreen(),
@@ -23,35 +24,47 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pantallas[_indiceSeleccionado],
+      body: _pantallas[_indiceActual],
 
-      // Botón flotante central para agregar nueva medición
+      // Botón flotante para agregar registros
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF2F80ED),
-        shape: const CircleBorder(),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 4,
-        child: const Icon(Icons.add, color: Colors.white, size: 30),
         onPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistroMedicionScreen()));
         },
+        child: const Icon(Icons.add, size: 30),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // Lo colocamos a la derecha para que no estorbe a los 3 botones de abajo
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
 
-      // Barra de navegación inferior
+      // Barra de navegación inferior con los 3 botones
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF2F80ED),
-        unselectedItemColor: const Color(0xFF6B7280),
-        currentIndex: _indiceSeleccionado,
+        currentIndex: _indiceActual,
         onTap: (index) {
           setState(() {
-            _indiceSeleccionado = index;
+            _indiceActual = index;
           });
         },
+        selectedItemColor: const Color(0xFF2F80ED),
+        unselectedItemColor: const Color(0xFF9CA3AF),
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: "Inicio"),
-          BottomNavigationBarItem(icon: Icon(Icons.history_outlined), activeIcon: Icon(Icons.history), label: "Historial"),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: "Perfil"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: "Inicio",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: "Historial",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: "Perfil",
+          ),
         ],
       ),
     );
