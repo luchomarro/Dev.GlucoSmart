@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '/estado_global.dart';
-import '/pantallas/recomendaciones.dart';
 import '/pantallas/perfil.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -19,14 +18,8 @@ class DashboardScreen extends StatelessWidget {
         listenable: appState,
         builder: (context, child) {
           final recientes = appState.registros.take(3).toList();
-          final actualGlucosa = appState.registros.firstWhere(
-                  (r) => r.tieneGlucosa,
-              orElse: () => RegistroSalud(id: '', fecha: DateTime.now())
-          );
-          final actualPresion = appState.registros.firstWhere(
-                  (r) => r.tienePresion,
-              orElse: () => RegistroSalud(id: '', fecha: DateTime.now())
-          );
+          final actualGlucosa = appState.registros.firstWhere((r) => r.tieneGlucosa, orElse: () => RegistroSalud(id: '', fecha: DateTime.now()));
+          final actualPresion = appState.registros.firstWhere((r) => r.tienePresion, orElse: () => RegistroSalud(id: '', fecha: DateTime.now()));
 
           final now = DateTime.now();
           List<double?> promGlucosa = List.filled(5, null);
@@ -39,32 +32,21 @@ class DashboardScreen extends StatelessWidget {
             DateTime inicioSemana = now.subtract(Duration(days: diasAtrasFin));
             DateTime finSemana = now.subtract(Duration(days: diasAtrasInicio));
 
-            var registrosSemana = appState.registros.where((r) =>
-            r.fecha.isAfter(inicioSemana) &&
-                (r.fecha.isBefore(finSemana) || r.fecha.isAtSameMomentAs(finSemana))
-            );
+            var registrosSemana = appState.registros.where((r) => r.fecha.isAfter(inicioSemana) && (r.fecha.isBefore(finSemana) || r.fecha.isAtSameMomentAs(finSemana)));
 
             var regGlucosa = registrosSemana.where((r) => r.tieneGlucosa);
-            if (regGlucosa.isNotEmpty) {
-              promGlucosa[i] = regGlucosa.map((r) => r.glucosa!).reduce((a, b) => a + b) / regGlucosa.length;
-            }
+            if (regGlucosa.isNotEmpty) promGlucosa[i] = regGlucosa.map((r) => r.glucosa!).reduce((a, b) => a + b) / regGlucosa.length;
 
             var regPresion = registrosSemana.where((r) => r.tienePresion);
-            if (regPresion.isNotEmpty) {
-              promPresion[i] = regPresion.map((r) => r.presionSis!.toDouble()).reduce((a, b) => a + b) / regPresion.length;
-            }
+            if (regPresion.isNotEmpty) promPresion[i] = regPresion.map((r) => r.presionSis!.toDouble()).reduce((a, b) => a + b) / regPresion.length;
           }
 
           double baseGlucosa = appState.registros.lastWhere((r) => r.tieneGlucosa, orElse: () => RegistroSalud(id: '', fecha: now, glucosa: 100)).glucosa ?? 100.0;
           double basePresion = appState.registros.lastWhere((r) => r.tienePresion, orElse: () => RegistroSalud(id: '', fecha: now, presionSis: 120)).presionSis?.toDouble() ?? 120.0;
 
           for (int i = 0; i < 5; i++) {
-            if (promGlucosa[i] == null) {
-              promGlucosa[i] = i == 0 ? baseGlucosa : promGlucosa[i - 1];
-            }
-            if (promPresion[i] == null) {
-              promPresion[i] = i == 0 ? basePresion : promPresion[i - 1];
-            }
+            if (promGlucosa[i] == null) promGlucosa[i] = i == 0 ? baseGlucosa : promGlucosa[i - 1];
+            if (promPresion[i] == null) promPresion[i] = i == 0 ? basePresion : promPresion[i - 1];
           }
 
           final spotsGlucosa = promGlucosa.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value!)).toList();
@@ -78,7 +60,6 @@ class DashboardScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- CABECERA ACTUALIZADA ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -89,7 +70,7 @@ class DashboardScreen extends StatelessWidget {
                             const Text("¿Cómo te sientes hoy?", style: TextStyle(color: Color(0xFF6B7280))),
                           ],
                         ),
-                        // NUEVO: Avatar clickeable con foto dinámica
+                        // AQUÍ REACTIVAMOS EL NAVEGADOR AL PERFIL
                         GestureDetector(
                           onTap: () {
                             Navigator.push(context, MaterialPageRoute(builder: (_) => const PerfilScreen()));
@@ -98,9 +79,7 @@ class DashboardScreen extends StatelessWidget {
                             backgroundColor: const Color(0xFFEAF3FF),
                             radius: 24,
                             backgroundImage: appState.perfil.fotoPerfilPath != null ? FileImage(File(appState.perfil.fotoPerfilPath!)) : null,
-                            child: appState.perfil.fotoPerfilPath == null
-                                ? const Icon(Icons.person, color: Color(0xFF2F80ED), size: 30)
-                                : null, // Si hay foto, ocultamos el ícono genérico
+                            child: appState.perfil.fotoPerfilPath == null ? const Icon(Icons.person, color: Color(0xFF2F80ED), size: 30) : null,
                           ),
                         ),
                       ],
@@ -119,33 +98,6 @@ class DashboardScreen extends StatelessWidget {
                     _buildGraphCard("Tendencias de Glucosa", spotsGlucosa, colorGlucosa, "Promedio semanal (mg/dL)"),
                     const SizedBox(height: 20),
                     _buildGraphCard("Tendencias de Presión Sistólica", spotsPresion, colorPresion, "Promedio semanal (mmHg)"),
-                    const SizedBox(height: 24),
-
-                    InkWell(
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const RecomendacionesScreen()));
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: const Color(0xFFEAFBF4), borderRadius: BorderRadius.circular(16)),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.psychology, color: Color(0xFF1DB954), size: 28),
-                            SizedBox(width: 16),
-                            Expanded(
-                                child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text("Ver recomendaciones de la IA", style: TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.bold, fontSize: 16)),
-                                      Text("Basado en tus tendencias", style: TextStyle(color: Color(0xFF1DB954), fontSize: 12)),
-                                    ]
-                                )
-                            ),
-                            Icon(Icons.arrow_forward_ios, color: Color(0xFF1DB954), size: 16),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 24),
 
                     const Text("Registros Recientes", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: colorOscuroText)),
@@ -211,10 +163,7 @@ class DashboardScreen extends StatelessWidget {
                           else if (index == semanas.length - 1) paddingLateral = const EdgeInsets.only(top: 8.0, right: 24.0);
                           else paddingLateral = const EdgeInsets.only(top: 8.0);
 
-                          return Padding(
-                              padding: paddingLateral,
-                              child: Text(semanas[index], style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)))
-                          );
+                          return Padding(padding: paddingLateral, child: Text(semanas[index], style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))));
                         }
                         return const Text('');
                       },
