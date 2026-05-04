@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pantallas/arranque.dart';
 import 'pantallas/login.dart';
 
 void main() {
@@ -13,18 +14,26 @@ class GlucoSmartApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'GlucoSmart',
-      initialRoute: '/',
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFF4F8FF),
         useMaterial3: true,
       ),
+      // Pantalla inicial: ArranqueScreen decide si ir a login o a la app principal
+      // según haya o no sesión guardada.
+      home: const ArranqueScreen(),
       routes: {
-        '/': (context) => const BienvenidaScreen(),
         '/login': (context) => const LoginScreen(),
+        '/bienvenida': (context) => const BienvenidaScreen(),
       },
     );
   }
 }
+
+// =================================================================
+// Pantalla de bienvenida original — la dejamos por compatibilidad
+// con cualquier código que aún la referencie, pero ya no es la
+// pantalla inicial.
+// =================================================================
 
 class BienvenidaScreen extends StatelessWidget {
   const BienvenidaScreen({super.key});

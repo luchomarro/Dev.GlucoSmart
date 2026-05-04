@@ -1,0 +1,1 @@
+ C:\\desarrollo\\Dev.GlucoSmart\\build\\b0b22a232d61e3cae773d556be86dc39\\dart_build_result.json:  C:\\desarrollo\\Dev.GlucoSmart\\.dart_tool\\package_config.json C:\\desarrollo\\Dev.GlucoSmart\\pubspec.yaml C:\\src\\flutter\\bin\\cache\\dart-sdk\\version c:\\desarrollo\\dev.glucosmart\\.dart_tool\\package_config.json

@@ -4,6 +4,7 @@ import '/pantallas/historial.dart';
 import '/pantallas/registro_medicion.dart';
 import '/pantallas/recomendaciones.dart';
 import '/pantallas/perfil.dart';
+import '/widgets/banner_verificacion.dart';
 
 class NavegacionPrincipal extends StatefulWidget {
   const NavegacionPrincipal({super.key});
@@ -26,7 +27,13 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pantallas[_indiceActual],
+      // Banner de verificación de email arriba + contenido de la pestaña abajo
+      body: Column(
+        children: [
+          const BannerVerificacion(),
+          Expanded(child: _pantallas[_indiceActual]),
+        ],
+      ),
 
       // Botón flotante para agregar registros
       floatingActionButton: FloatingActionButton(
@@ -44,7 +51,7 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
       // Barra de navegación inferior con los 4 botones
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
-        type: BottomNavigationBarType.fixed, // Mantiene todos los íconos estáticos y visibles
+        type: BottomNavigationBarType.fixed,
         currentIndex: _indiceActual,
         onTap: (index) {
           setState(() {
