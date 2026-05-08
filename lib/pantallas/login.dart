@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '/navegacion_principal.dart';
 import '/servicios/auth_service.dart';
+import '/servicios/google_sign_in_service.dart'; // ← dispatch condicional web/móvil
 import 'recuperar_password.dart';
 import 'registro.dart';
 
@@ -19,11 +22,41 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _cargando = false;
   bool _mostrarPassword = false;
 
+  late StreamSubscription<String> _googleSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializa el servicio (registra HtmlElementView en web, no-op en móvil)
+    GoogleSignInService.init();
+    // Escucha el id_token que llega cuando el usuario se autentica con Google
+    _googleSub =
+        GoogleSignInService.tokenStream.listen(_manejarCredencialGoogle);
+  }
+
   @override
   void dispose() {
+    _googleSub.cancel();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _manejarCredencialGoogle(String idToken) async {
+    setState(() => _cargando = true);
+    try {
+      await AuthService.loginConGoogle(idToken);
+      if (!mounted) return;
+      _irAlHome();
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.message);
+    } catch (e) {
+      if (!mounted) return;
+      _mostrarError('Error con Google Sign-In: $e');
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   Future<void> _login() async {
@@ -35,10 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passCtrl.text,
       );
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const NavegacionPrincipal()),
-        (_) => false,
-      );
+      _irAlHome();
     } on AuthException catch (e) {
       if (!mounted) return;
       _mostrarError(e.message);
@@ -50,35 +80,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Por ahora muestra un aviso. Cuando configures Google Cloud y actualices
-  /// el paquete `google_sign_in` con la API v7, este método se conectará
-  /// realmente con Google.
-  Future<void> _loginGoogle() async {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Inicio con Google'),
-        content: const Text(
-          'El inicio con Google requiere configurar un proyecto en Google Cloud '
-          'y activar la API de Google Sign-In.\n\n'
-          'Por ahora, usa tu correo y contraseña para entrar.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Entendido'),
-          ),
-        ],
-      ),
+  void _irAlHome() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const NavegacionPrincipal()),
+      (_) => false,
     );
   }
 
   void _mostrarError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: const Color(0xFFFF3B30),
-      ),
+      SnackBar(content: Text(msg), backgroundColor: const Color(0xFFFF3B30)),
     );
   }
 
@@ -98,20 +109,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 32),
-                    const Icon(
-                      Icons.favorite,
-                      color: Color(0xFF2F80ED),
-                      size: 64,
-                    ),
+                    const Icon(Icons.favorite,
+                        color: Color(0xFF2F80ED), size: 64),
                     const SizedBox(height: 16),
                     const Text(
                       'GlucoSmart',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF12305B),
-                      ),
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF12305B)),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -125,10 +132,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       enabled: !_cargando,
-                      decoration: _decoration('Correo electrónico', Icons.email_outlined),
+                      decoration: _decoration(
+                          'Correo electrónico', Icons.email_outlined),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
-                        if (!v.contains('@') || !v.contains('.')) return 'Correo inválido';
+                        if (v == null || v.trim().isEmpty)
+                          return 'Ingresa tu correo';
+                        if (!v.contains('@') || !v.contains('.'))
+                          return 'Correo inválido';
                         return null;
                       },
                     ),
@@ -138,14 +148,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passCtrl,
                       obscureText: !_mostrarPassword,
                       enabled: !_cargando,
-                      decoration: _decoration('Contraseña', Icons.lock_outline).copyWith(
+                      decoration:
+                          _decoration('Contraseña', Icons.lock_outline).copyWith(
                         suffixIcon: IconButton(
-                          icon: Icon(_mostrarPassword ? Icons.visibility_off : Icons.visibility),
-                          onPressed: () => setState(() => _mostrarPassword = !_mostrarPassword),
+                          icon: Icon(_mostrarPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () => setState(
+                              () => _mostrarPassword = !_mostrarPassword),
                         ),
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
+                        if (v == null || v.isEmpty)
+                          return 'Ingresa tu contraseña';
                         return null;
                       },
                     ),
@@ -154,15 +169,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: _cargando ? null : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const RecuperarPasswordScreen()),
-                          );
-                        },
-                        child: const Text(
-                          '¿Olvidaste tu contraseña?',
-                          style: TextStyle(color: Color(0xFF2F80ED)),
-                        ),
+                        onPressed: _cargando
+                            ? null
+                            : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RecuperarPasswordScreen())),
+                        child: const Text('¿Olvidaste tu contraseña?',
+                            style: TextStyle(color: Color(0xFF2F80ED))),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -174,18 +188,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2F80ED),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         child: _cargando
                             ? const SizedBox(
-                                width: 20, height: 20,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Text(
-                                'Iniciar sesión',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Text('Iniciar sesión',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -195,29 +210,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         Expanded(child: Divider()),
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('o', style: TextStyle(color: Color(0xFF9CA3AF))),
+                          child: Text('o',
+                              style: TextStyle(color: Color(0xFF9CA3AF))),
                         ),
                         Expanded(child: Divider()),
                       ],
                     ),
                     const SizedBox(height: 24),
 
-                    SizedBox(
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: _cargando ? null : _loginGoogle,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF12305B),
-                          side: const BorderSide(color: Color(0xFFD1D5DB)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.account_circle, color: Color(0xFFEA4335)),
-                        label: const Text(
-                          'Continuar con Google',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
+                    // El servicio devuelve HtmlElementView (web) o OutlinedButton (móvil)
+                    GoogleSignInService.buildButton(),
+
                     const SizedBox(height: 32),
 
                     Row(
@@ -226,18 +229,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Text('¿No tienes cuenta? ',
                             style: TextStyle(color: Color(0xFF6B7280))),
                         TextButton(
-                          onPressed: _cargando ? null : () {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const RegistroScreen()),
-                            );
-                          },
-                          child: const Text(
-                            'Regístrate',
-                            style: TextStyle(
-                              color: Color(0xFF2F80ED),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          onPressed: _cargando
+                              ? null
+                              : () => Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                        builder: (_) => const RegistroScreen()),
+                                  ),
+                          child: const Text('Regístrate',
+                              style: TextStyle(
+                                  color: Color(0xFF2F80ED),
+                                  fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),

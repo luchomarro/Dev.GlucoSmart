@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Importante para formatear la fecha
+import 'package:intl/intl.dart';
 import '/estado_global.dart';
+import '/servicios/api_service.dart';
 
 class RegistroMedicionScreen extends StatefulWidget {
   final RegistroSalud? registroAEditar;
@@ -16,16 +17,15 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
   final _diaCtrl = TextEditingController();
   final _notasCtrl = TextEditingController();
 
-  // 'ambos', 'glucosa', o 'presion'
   String _tipoSeleccionado = 'ambos';
-
-  // Variable para manejar la fecha
   late DateTime _fechaSeleccionada;
+
+  // ── NUEVO: controla el estado de carga mientras se llama a la API ──
+  bool _guardando = false;
 
   @override
   void initState() {
     super.initState();
-    // Iniciamos con la fecha actual por defecto
     _fechaSeleccionada = DateTime.now();
 
     if (widget.registroAEditar != null) {
@@ -42,24 +42,21 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
       _sisCtrl.text = reg.presionSis?.toString() ?? '';
       _diaCtrl.text = reg.presionDia?.toString() ?? '';
       _notasCtrl.text = reg.notas;
-
-      // Si estamos editando, cargamos la fecha de ese registro
       _fechaSeleccionada = reg.fecha;
     }
   }
 
-  // Función para abrir el calendario nativo de Android/iOS
   Future<void> _seleccionarFecha(BuildContext context) async {
     final DateTime? fechaElegida = await showDatePicker(
       context: context,
       initialDate: _fechaSeleccionada,
-      firstDate: DateTime(2020), // Hasta qué año en el pasado puede elegir
-      lastDate: DateTime.now(),  // No dejamos registrar fechas en el futuro
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF2F80ED), // Color principal del calendario
+              primary: Color(0xFF2F80ED),
               onPrimary: Colors.white,
               onSurface: Color(0xFF12305B),
             ),
@@ -71,7 +68,6 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
 
     if (fechaElegida != null && fechaElegida != _fechaSeleccionada) {
       setState(() {
-        // Mantenemos la hora actual, pero cambiamos el día, mes y año
         _fechaSeleccionada = DateTime(
           fechaElegida.year,
           fechaElegida.month,
@@ -83,24 +79,92 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
     }
   }
 
-  void _guardar() {
-    final nuevoReg = RegistroSalud(
-      id: widget.registroAEditar?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      // Solo guardamos el dato si su categoría está seleccionada
-      glucosa: (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'glucosa') ? double.tryParse(_glucosaCtrl.text) : null,
-      presionSis: (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'presion') ? int.tryParse(_sisCtrl.text) : null,
-      presionDia: (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'presion') ? int.tryParse(_diaCtrl.text) : null,
-      // Usamos la fecha seleccionada en el calendario
-      fecha: _fechaSeleccionada,
-      notas: _notasCtrl.text,
-    );
+  // ── CORRECCIÓN PRINCIPAL: _guardar() ahora llama a la API ──
+  Future<void> _guardar() async {
+    final glucosa = (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'glucosa')
+        ? double.tryParse(_glucosaCtrl.text)
+        : null;
+    final presionSis = (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'presion')
+        ? int.tryParse(_sisCtrl.text)
+        : null;
+    final presionDia = (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'presion')
+        ? int.tryParse(_diaCtrl.text)
+        : null;
 
-    if (widget.registroAEditar != null) {
-      appState.actualizarRegistro(nuevoReg);
-    } else {
-      appState.agregarRegistro(nuevoReg);
+    // Validación básica
+    if (glucosa == null && presionSis == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ingresa al menos un valor de glucosa o presión'),
+          backgroundColor: Color(0xFFFF3B30),
+        ),
+      );
+      return;
     }
-    Navigator.pop(context);
+
+    setState(() => _guardando = true);
+
+    try {
+      if (widget.registroAEditar != null) {
+        // Edición: el backend no tiene endpoint PUT/PATCH para readings,
+        // así que solo actualizamos el estado local.
+        // TODO: implementar PUT /api/readings/{id} en el backend.
+        final reg = RegistroSalud(
+          id: widget.registroAEditar!.id,
+          glucosa: glucosa,
+          presionSis: presionSis,
+          presionDia: presionDia,
+          fecha: _fechaSeleccionada,
+          notas: _notasCtrl.text,
+        );
+        appState.actualizarRegistro(reg);
+      } else {
+        // ── NUEVA lectura: llamamos al backend ──
+        final response = await ApiService.registrarMedicion(
+          glucosa: glucosa,
+          presionSis: presionSis,
+          presionDia: presionDia,
+          notas: _notasCtrl.text,
+          fecha: _fechaSeleccionada,
+        );
+
+        // Construimos el RegistroSalud con el ID real que devuelve el backend
+        final nuevoReg = RegistroSalud(
+          id: response['id'].toString(),
+          glucosa: response['glucosa'] != null
+              ? (response['glucosa'] as num).toDouble()
+              : null,
+          presionSis: response['presion_sis'] as int?,
+          presionDia: response['presion_dia'] as int?,
+          fecha: DateTime.parse(response['fecha'] as String),
+          notas: (response['notas'] as String?) ?? '',
+        );
+
+        appState.agregarRegistro(nuevoReg);
+      }
+
+      if (mounted) Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: ${e.message}'),
+            backgroundColor: const Color(0xFFFF3B30),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error inesperado: $e'),
+            backgroundColor: const Color(0xFFFF3B30),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
   }
 
   @override
@@ -108,14 +172,18 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F8FF),
       appBar: AppBar(
-        title: Text(widget.registroAEditar != null ? "Editar Medición" : "Nueva Medición", style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF12305B))),
-        backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Color(0xFF12305B)),
+        title: Text(
+          widget.registroAEditar != null ? "Editar Medición" : "Nueva Medición",
+          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF12305B)),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF12305B)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // SLIDER DE SELECCIÓN
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'glucosa', label: Text('Glucosa')),
@@ -141,13 +209,16 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
 
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))]),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  // SECCIÓN DE FECHA NUEVA
-                  const Text("Fecha de la medición", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
+                  const Text("Fecha de la medición",
+                      style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => _seleccionarFecha(context),
@@ -174,38 +245,66 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // INPUTS DINÁMICOS
                   if (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'glucosa')
-                    _buildInput("Glucosa (mg/dL)", _glucosaCtrl, Icons.water_drop_outlined, const Color(0xFF00C7BE)),
+                    _buildInput("Glucosa (mg/dL)", _glucosaCtrl,
+                        Icons.water_drop_outlined, const Color(0xFF00C7BE)),
 
                   if (_tipoSeleccionado == 'ambos' || _tipoSeleccionado == 'presion')
                     Row(
                       children: [
-                        Expanded(child: _buildInput("Sistólica", _sisCtrl, Icons.favorite_border, const Color(0xFFFF3B30))),
+                        Expanded(child: _buildInput("Sistólica", _sisCtrl,
+                            Icons.favorite_border, const Color(0xFFFF3B30))),
                         const SizedBox(width: 16),
-                        Expanded(child: _buildInput("Diastólica", _diaCtrl, Icons.favorite_border, const Color(0xFFFF3B30))),
+                        Expanded(child: _buildInput("Diastólica", _diaCtrl,
+                            Icons.favorite_border, const Color(0xFFFF3B30))),
                       ],
                     ),
 
                   const SizedBox(height: 16),
-                  const Text("Notas (Opcional)", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
+                  const Text("Notas (Opcional)",
+                      style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _notasCtrl, maxLines: 3,
+                    controller: _notasCtrl,
+                    maxLines: 3,
                     decoration: InputDecoration(
-                      filled: true, fillColor: const Color(0xFFF8FBFF),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FBFF),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  // ── Botón con estado de carga ──
                   SizedBox(
-                    width: double.infinity, height: 50,
+                    width: double.infinity,
+                    height: 50,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2F80ED), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      onPressed: _guardar,
-                      child: const Text("Guardar Registro", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2F80ED),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _guardando ? null : _guardar,
+                      child: _guardando
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const Text(
+                              "Guardar Registro",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold),
+                            ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ),
@@ -215,20 +314,27 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
     );
   }
 
-  Widget _buildInput(String label, TextEditingController ctrl, IconData icon, Color color) {
+  Widget _buildInput(
+      String label, TextEditingController ctrl, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
+          Text(label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
           const SizedBox(height: 8),
           TextField(
-            controller: ctrl, keyboardType: TextInputType.number,
+            controller: ctrl,
+            keyboardType: TextInputType.number,
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: color),
-              filled: true, fillColor: const Color(0xFFF8FBFF),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              filled: true,
+              fillColor: const Color(0xFFF8FBFF),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
             ),
           ),
         ],

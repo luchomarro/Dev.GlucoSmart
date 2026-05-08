@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -15,28 +14,23 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Migrado de kotlinOptions (deprecado en Kotlin Gradle Plugin 2.x)
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.upn.glucosmart.app.glucosmart_app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        //minSdk = 21
+
+        // minSdk 21 = Android 5.0 mínimo (requerido por google_sign_in y flutter_secure_storage)
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
-        //targetSdk = flutter.targetSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        minSdkVersion 21
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

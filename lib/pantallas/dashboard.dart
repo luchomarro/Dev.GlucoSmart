@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '/estado_global.dart';
-import '/pantallas/perfil.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onIrAPerfil;
+  const DashboardScreen({super.key, this.onIrAPerfil});
 
   static const Color colorGlucosa = Color(0xFF00C7BE);
   static const Color colorPresion = Color(0xFFFF3B30);
@@ -73,13 +73,19 @@ class DashboardScreen extends StatelessWidget {
                         // AQUÍ REACTIVAMOS EL NAVEGADOR AL PERFIL
                         GestureDetector(
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const PerfilScreen()));
+                            onIrAPerfil?.call();
                           },
                           child: CircleAvatar(
                             backgroundColor: const Color(0xFFEAF3FF),
                             radius: 24,
-                            backgroundImage: appState.perfil.fotoPerfilPath != null ? FileImage(File(appState.perfil.fotoPerfilPath!)) : null,
-                            child: appState.perfil.fotoPerfilPath == null ? const Icon(Icons.person, color: Color(0xFF2F80ED), size: 30) : null,
+                            backgroundImage: appState.perfil.fotoUrl != null
+                                ? NetworkImage(appState.perfil.fotoUrl!) as ImageProvider
+                                : appState.perfil.fotoPerfilPath != null
+                                    ? FileImage(File(appState.perfil.fotoPerfilPath!)) as ImageProvider
+                                    : null,
+                            child: (appState.perfil.fotoUrl == null && appState.perfil.fotoPerfilPath == null)
+                                ? const Icon(Icons.person, color: Color(0xFF2F80ED), size: 30)
+                                : null,
                           ),
                         ),
                       ],

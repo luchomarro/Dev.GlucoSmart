@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 class PerfilUsuario {
   String nombre;
   DateTime? fechaNacimiento;
-  double? peso; // en kg
-  double? altura; // en metros
+  double? peso;
+  double? altura;
   String telefono;
   List<String> condicionesMedicas;
   bool notificacionesActivas;
-  String? fotoPerfilPath; // Memoria para la ruta de la foto en el celular
+  String? fotoPerfilPath; // ruta local (image_picker)
+  String? fotoUrl;        // URL de red (Google Sign-In)
 
   PerfilUsuario({
     required this.nombre,
@@ -20,9 +21,9 @@ class PerfilUsuario {
     this.condicionesMedicas = const [],
     this.notificacionesActivas = true,
     this.fotoPerfilPath,
+    this.fotoUrl,
   });
 
-  // Cálculo automático del IMC (Índice de Masa Corporal)
   double get imc {
     if (peso != null && altura != null && altura! > 0) {
       return peso! / (altura! * altura!);
@@ -40,7 +41,14 @@ class RegistroSalud {
   DateTime fecha;
   String notas;
 
-  RegistroSalud({required this.id, this.glucosa, this.presionSis, this.presionDia, required this.fecha, this.notas = ''});
+  RegistroSalud({
+    required this.id,
+    this.glucosa,
+    this.presionSis,
+    this.presionDia,
+    required this.fecha,
+    this.notas = '',
+  });
 
   bool get tieneGlucosa => glucosa != null;
   bool get tienePresion => presionSis != null && presionDia != null;
@@ -52,27 +60,21 @@ class AppState extends ChangeNotifier {
   factory AppState() => _instancia;
   AppState._interno();
 
-  // 1. Datos del usuario por defecto
-  PerfilUsuario perfil = PerfilUsuario(
-    nombre: "Luis",
-    fechaNacimiento: DateTime(1995, 11, 14),
-    peso: 105.0,
-    altura: 1.77,
-    telefono: "",
-    condicionesMedicas: [],
-  );
+  // Perfil del usuario (se actualiza desde la API al hacer login)
+  PerfilUsuario perfil = PerfilUsuario(nombre: "");
 
-  // 2. Historial de prueba
-  List<RegistroSalud> registros = [
-    RegistroSalud(id: '1', glucosa: 98, presionSis: 120, presionDia: 80, fecha: DateTime.now()),
-    RegistroSalud(id: '2', presionSis: 125, presionDia: 82, fecha: DateTime.now().subtract(const Duration(days: 9)), notas: 'Semana pasada'),
-    RegistroSalud(id: '3', glucosa: 110, fecha: DateTime.now().subtract(const Duration(days: 16)), notas: 'Hace 2 semanas'),
-    RegistroSalud(id: '4', glucosa: 105, presionSis: 118, presionDia: 78, fecha: DateTime.now().subtract(const Duration(days: 23)), notas: 'Hace 3 semanas'),
-    RegistroSalud(id: '5', glucosa: 95, presionSis: 115, presionDia: 75, fecha: DateTime.now().subtract(const Duration(days: 30)), notas: 'Hace 4 semanas'),
-  ];
+  // ── CORRECCIÓN: lista vacía; se llena desde la API ──
+  List<RegistroSalud> registros = [];
 
   void actualizarPerfil(PerfilUsuario nuevoPerfil) {
     perfil = nuevoPerfil;
+    notifyListeners();
+  }
+
+  // ── NUEVO: reemplaza toda la lista con los datos que devuelve la API ──
+  void setRegistros(List<RegistroSalud> nuevos) {
+    registros = nuevos;
+    registros.sort((a, b) => b.fecha.compareTo(a.fecha));
     notifyListeners();
   }
 

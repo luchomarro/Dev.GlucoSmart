@@ -199,14 +199,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: const Color(0xFF2F80ED),
-                    child: Text(
-                      nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    // Muestra foto de Google (URL) o la inicial del nombre
+                    backgroundImage: _usuario?['foto_path'] != null &&
+                            (_usuario!['foto_path'] as String).startsWith('http')
+                        ? NetworkImage(_usuario!['foto_path'] as String)
+                            as ImageProvider
+                        : null,
+                    child: (_usuario?['foto_path'] == null ||
+                            !(_usuario!['foto_path'] as String).startsWith('http'))
+                        ? Text(
+                            nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   Text(

@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'pantallas/arranque.dart';
 import 'pantallas/login.dart';
 
-void main() {
+// ── CORRECCIÓN: main() ahora es async para inicializar el locale ──
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa los datos de formato de fecha para español.
+  // Sin esto, DateFormat('d MMMM y', 'es') lanza LocaleDataException.
+  await initializeDateFormatting('es', null);
+
   runApp(const GlucoSmartApp());
 }
 
@@ -14,12 +23,25 @@ class GlucoSmartApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'GlucoSmart',
+
+      // ── CORRECCIÓN: delegates + locale para que showDatePicker
+      //    y otros widgets del sistema aparezcan en español ──
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'PE'), // Español Perú (principal)
+        Locale('es'),       // Español genérico
+        Locale('en'),       // Inglés (fallback)
+      ],
+      locale: const Locale('es', 'PE'),
+
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFF4F8FF),
         useMaterial3: true,
       ),
-      // Pantalla inicial: ArranqueScreen decide si ir a login o a la app principal
-      // según haya o no sesión guardada.
       home: const ArranqueScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
@@ -30,9 +52,7 @@ class GlucoSmartApp extends StatelessWidget {
 }
 
 // =================================================================
-// Pantalla de bienvenida original — la dejamos por compatibilidad
-// con cualquier código que aún la referencie, pero ya no es la
-// pantalla inicial.
+// Pantalla de bienvenida — se mantiene sin cambios
 // =================================================================
 
 class BienvenidaScreen extends StatelessWidget {
@@ -101,7 +121,7 @@ class BienvenidaScreen extends StatelessWidget {
                     child: WelcomeMiniCard(
                       title: 'Registra',
                       subtitle:
-                      'Guarda tus niveles de glucosa y presión de forma rápida.',
+                          'Guarda tus niveles de glucosa y presión de forma rápida.',
                       iconBg: const Color(0xFFEAF3FF),
                       topWidget: Image.asset(
                         'assets/images/registro.png',
@@ -116,7 +136,7 @@ class BienvenidaScreen extends StatelessWidget {
                     child: WelcomeMiniCard(
                       title: 'Visualiza',
                       subtitle:
-                      'Consulta tu historial y observa tus tendencias.',
+                          'Consulta tu historial y observa tus tendencias.',
                       iconBg: const Color(0xFFEAFBF4),
                       topWidget: Image.asset(
                         'assets/images/visualiza.png',
@@ -131,7 +151,7 @@ class BienvenidaScreen extends StatelessWidget {
                     child: WelcomeMiniCard(
                       title: 'Predice',
                       subtitle:
-                      'Recibe recomendaciones personalizadas basadas en tu análisis.',
+                          'Recibe recomendaciones personalizadas basadas en tu análisis.',
                       iconBg: const Color(0xFFF1EAFE),
                       topWidget: Image.asset(
                         'assets/images/predice.png',
@@ -187,9 +207,7 @@ class BienvenidaScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FBFF),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFE5E7EB),
-                          ),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
@@ -223,10 +241,7 @@ class BienvenidaScreen extends StatelessWidget {
                   },
                   child: const Text(
                     'Comenzar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -249,10 +264,7 @@ class BienvenidaScreen extends StatelessWidget {
                   },
                   child: const Text(
                     'Iniciar sesión',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -287,10 +299,7 @@ class WelcomeMiniCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x18000000),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: Color(0x18000000), blurRadius: 10),
         ],
       ),
       child: Column(
