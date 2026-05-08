@@ -19,6 +19,7 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
 
   String _tipoSeleccionado = 'ambos';
   late DateTime _fechaSeleccionada;
+  late TimeOfDay _horaSeleccionada;
 
   // ── NUEVO: controla el estado de carga mientras se llama a la API ──
   bool _guardando = false;
@@ -27,6 +28,7 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
   void initState() {
     super.initState();
     _fechaSeleccionada = DateTime.now();
+    _horaSeleccionada = TimeOfDay.now();
 
     if (widget.registroAEditar != null) {
       final reg = widget.registroAEditar!;
@@ -43,6 +45,7 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
       _diaCtrl.text = reg.presionDia?.toString() ?? '';
       _notasCtrl.text = reg.notas;
       _fechaSeleccionada = reg.fecha;
+      _horaSeleccionada = TimeOfDay(hour: reg.fecha.hour, minute: reg.fecha.minute);
     }
   }
 
@@ -72,8 +75,39 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
           fechaElegida.year,
           fechaElegida.month,
           fechaElegida.day,
-          DateTime.now().hour,
-          DateTime.now().minute,
+          _horaSeleccionada.hour,
+          _horaSeleccionada.minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _seleccionarHora(BuildContext context) async {
+    final TimeOfDay? horaElegida = await showTimePicker(
+      context: context,
+      initialTime: _horaSeleccionada,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF2F80ED),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF12305B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (horaElegida != null) {
+      setState(() {
+        _horaSeleccionada = horaElegida;
+        _fechaSeleccionada = DateTime(
+          _fechaSeleccionada.year,
+          _fechaSeleccionada.month,
+          _fechaSeleccionada.day,
+          horaElegida.hour,
+          horaElegida.minute,
         );
       });
     }
@@ -235,6 +269,35 @@ class _RegistroMedicionScreenState extends State<RegistroMedicionScreen> {
                           Expanded(
                             child: Text(
                               DateFormat('dd MMM yyyy').format(_fechaSeleccionada),
+                              style: const TextStyle(fontSize: 16, color: Color(0xFF12305B)),
+                            ),
+                          ),
+                          const Icon(Icons.edit, size: 16, color: Color(0xFF6B7280)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // SELECTOR DE HORA
+                  const Text("Hora de la medición",
+                      style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF12305B))),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _seleccionarHora(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FBFF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.access_time, color: Color(0xFF2F80ED)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _horaSeleccionada.format(context),
                               style: const TextStyle(fontSize: 16, color: Color(0xFF12305B)),
                             ),
                           ),
