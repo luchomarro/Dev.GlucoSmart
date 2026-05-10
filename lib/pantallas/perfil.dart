@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '/pantallas/login.dart';
 import '/servicios/api_service.dart';
 import '/servicios/auth_service.dart';
+import '/estado_global.dart';
 
 /// Pantalla de perfil del usuario, conectada al backend.
 ///
@@ -20,6 +22,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Map<String, dynamic>? _usuario;
   bool _cargando = true;
   String? _error;
+  bool _subiendoFoto = false;
 
   @override
   void initState() {
@@ -89,6 +92,50 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
     if (actualizado != null && mounted) {
       setState(() => _usuario = actualizado);
+    }
+  }
+
+  Future<void> _subirFoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    setState(() => _subiendoFoto = true);
+    try {
+      final actualizado = await ApiService.subirFotoPerfil(picked);
+      if (!mounted) return;
+      setState(() => _usuario = actualizado);
+      // Actualizar appState para que el Dashboard también refleje la nueva foto
+      appState.actualizarPerfil(PerfilUsuario(
+        nombre: (actualizado['nombre'] as String?) ?? appState.perfil.nombre,
+        fechaNacimiento: appState.perfil.fechaNacimiento,
+        peso: appState.perfil.peso,
+        altura: appState.perfil.altura,
+        telefono: appState.perfil.telefono,
+        condicionesMedicas: appState.perfil.condicionesMedicas,
+        fotoUrl: actualizado['foto_path'] as String?,
+      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto actualizada correctamente'),
+          backgroundColor: Color(0xFF1DB954),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al subir foto: $e'),
+          backgroundColor: Color(0xFFFF3B30),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _subiendoFoto = false);
     }
   }
 
@@ -196,26 +243,57 @@ class _PerfilScreenState extends State<PerfilScreen> {
             Center(
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 48,
-                    backgroundColor: const Color(0xFF2F80ED),
-                    // Muestra foto de Google (URL) o la inicial del nombre
-                    backgroundImage: _usuario?['foto_path'] != null &&
-                            (_usuario!['foto_path'] as String).startsWith('http')
-                        ? NetworkImage(_usuario!['foto_path'] as String)
-                            as ImageProvider
-                        : null,
-                    child: (_usuario?['foto_path'] == null ||
-                            !(_usuario!['foto_path'] as String).startsWith('http'))
-                        ? Text(
-                            nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    onTap: _subiendoFoto ? null : _subirFoto,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 48,
+                          backgroundColor: const Color(0xFF2F80ED),
+                          backgroundImage: () {
+                            final foto = _usuario?['foto_path'] as String?;
+                            if (foto != null && foto.isNotEmpty) {
+                              return NetworkImage(foto) as ImageProvider;
+                            }
+                            return null;
+                          }(),
+                          child: () {
+                            final foto = _usuario?['foto_path'] as String?;
+                            if (foto != null && foto.isNotEmpty) return null;
+                            return Text(
+                              nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            );
+                          }(),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2F80ED),
+                            shape: BoxShape.circle,
+                          ),
+                          child: _subiendoFoto
+                              ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
                               color: Colors.white,
+                              strokeWidth: 2,
                             ),
                           )
-                        : null,
+                              : const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -454,8 +532,12 @@ class _EditorPerfilState extends State<_EditorPerfil> {
     _pesoCtrl = TextEditingController(
       text: (u['peso'] as num?)?.toStringAsFixed(1) ?? '',
     );
+    final alturaRaw = (u['altura'] as num?)?.toDouble();
+    final alturaEnMetros = (alturaRaw != null && alturaRaw > 3)
+        ? alturaRaw / 100
+        : alturaRaw;
     _alturaCtrl = TextEditingController(
-      text: (u['altura'] as num?)?.toStringAsFixed(2) ?? '',
+      text: alturaEnMetros?.toStringAsFixed(2) ?? '',
     );
     _telefonoCtrl = TextEditingController(text: u['telefono']?.toString() ?? '');
     _condiciones = ((u['condiciones_medicas'] as List?)?.cast<String>() ?? []).toList();
@@ -495,7 +577,11 @@ class _EditorPerfilState extends State<_EditorPerfil> {
       final actualizado = await ApiService.actualizarMiPerfil(
         nombre: _nombreCtrl.text.trim().isEmpty ? null : _nombreCtrl.text.trim(),
         peso: double.tryParse(_pesoCtrl.text.replaceAll(',', '.')),
-        altura: double.tryParse(_alturaCtrl.text.replaceAll(',', '.')),
+        altura: () {
+          final v = double.tryParse(_alturaCtrl.text.replaceAll(',', '.'));
+          if (v == null) return null;
+          return v > 3 ? v / 100 : v;
+        }(),
         telefono: _telefonoCtrl.text.trim(),
         condicionesMedicas: _condiciones,
         fechaNacimiento: _fechaNacimiento,
