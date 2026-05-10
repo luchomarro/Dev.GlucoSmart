@@ -6,7 +6,8 @@ import 'dart:async';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:js' as js;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/widgets.dart';
@@ -37,32 +38,39 @@ class GoogleSignInService {
           ..style.alignItems = 'center'
           ..style.justifyContent = 'center';
 
-        final google = js.context['google'];
+        // 1. Obtener el objeto global de Google
+        final google = globalContext.getProperty('google'.toJS) as JSObject?;
         if (google == null) return container;
 
-        google['accounts']['id'].callMethod('initialize', [
-          js.JsObject.jsify({
-            'client_id': Config.googleWebClientId,
-            'callback': js.allowInterop((dynamic resp) {
-              final credential = resp['credential']?.toString() ?? '';
-              if (credential.isNotEmpty) _ctrl.add(credential);
-            }),
-          }),
-        ]);
+        // 2. Navegar hasta google.accounts.id
+        final accounts = google.getProperty('accounts'.toJS) as JSObject;
+        final id = accounts.getProperty('id'.toJS) as JSObject;
 
-        // renderButton usa popup OAuth2 — no usa FedCM, funciona en localhost.
-        google['accounts']['id'].callMethod('renderButton', [
-          container,
-          js.JsObject.jsify({
-            'type': 'standard',
-            'theme': 'outline',
-            'size': 'large',
-            'width': '380',
-            'text': 'continue_with',
-            'logo_alignment': 'left',
-            'locale': 'es',
-          }),
-        ]);
+        // 3. Inicializar
+        final initParams = {
+          'client_id': Config.googleWebClientId,
+          'callback': ((JSObject resp) {
+            final credential = resp.getProperty('credential'.toJS) as JSString?;
+            if (credential != null && credential.toDart.isNotEmpty) {
+              _ctrl.add(credential.toDart);
+            }
+          }).toJS,
+        }.jsify();
+
+        id.callMethod('initialize'.toJS, initParams);
+
+        // 4. Renderizar el botón
+        final renderParams = {
+          'type': 'standard',
+          'theme': 'outline',
+          'size': 'large',
+          'width': '380',
+          'text': 'continue_with',
+          'logo_alignment': 'left',
+          'locale': 'es',
+        }.jsify();
+
+        id.callMethod('renderButton'.toJS, container as JSAny, renderParams);
 
         return container;
       },
