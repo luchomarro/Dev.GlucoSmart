@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:http/http.dart' as http;
 
@@ -61,6 +63,38 @@ class ApiService {
     final res = await http
         .patch(url, headers: headers, body: json.encode(body))
         .timeout(_timeoutCorto);
+    return _parseJson(res);
+  }
+
+  // ---------------- Foto de perfil ----------------
+
+  static Future<Map<String, dynamic>> subirFotoPerfil(dynamic imagen) async {
+    final token = await AuthService.getToken();
+    if (token == null) throw AuthException('No hay sesión activa');
+
+    final url = Uri.parse('${Config.apiUrl}/api/users/me/foto');
+    final request = http.MultipartRequest('POST', url)
+      ..headers['Authorization'] = 'Bearer $token';
+
+    if (kIsWeb) {
+      // En web: imagen es un XFile, leer como bytes
+      final bytes = await imagen.readAsBytes();
+      final filename = imagen.name as String? ?? 'foto.jpg';
+      request.files.add(http.MultipartFile.fromBytes(
+        'foto',
+        bytes,
+        filename: filename,
+      ));
+    } else {
+      // En móvil/desktop: usar fromPath con dart:io
+      request.files.add(await http.MultipartFile.fromPath(
+        'foto',
+        imagen.path,
+      ));
+    }
+
+    final streamed = await request.send().timeout(_timeoutCorto);
+    final res = await http.Response.fromStream(streamed);
     return _parseJson(res);
   }
 
