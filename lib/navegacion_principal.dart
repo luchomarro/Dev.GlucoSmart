@@ -48,11 +48,11 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   /// y lo escribe en appState.perfil para que el Dashboard muestre el nombre.
   Future<void> _cargarPerfil() async {
     try {
-      // Intentamos con la caché local primero (sin llamada a red extra)
-      Map<String, dynamic>? user = await AuthService.getUser();
+      // Siempre pedimos datos frescos al backend para tener la foto actualizada
+      Map<String, dynamic>? user = await ApiService.obtenerMiPerfil();
 
-      // Si por alguna razón no está en caché, lo pedimos al backend
-      user ??= await ApiService.obtenerMiPerfil();
+      // Fallback a caché local si falla la red
+      user ??= await AuthService.getUser();
 
       if (user == null) return;
 
