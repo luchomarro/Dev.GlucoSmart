@@ -1,4 +1,4 @@
-// Implementación MÓVIL del servicio de Google Sign-In.
+// Implementación MÓVIL del servicio de Google Sign-In (Versión 7.0.0+)
 // Usa el paquete google_sign_in para Android e iOS.
 // Este archivo SOLO se compila en Android/iOS.
 
@@ -11,19 +11,25 @@ import '/configuracion.dart';
 
 final _ctrl = StreamController<String>.broadcast();
 
-// serverClientId = Web Client ID → necesario para que Android emita un id_token
-// que el backend Python pueda verificar con google-auth.
-final _googleSignIn = GoogleSignIn(
-  serverClientId: Config.googleWebClientId,
-  scopes: ['email', 'profile'],
-);
+// 1. En la versión 7, GoogleSignIn es un singleton
+final _googleSignIn = GoogleSignIn.instance;
+bool _inicializado = false;
 
 class GoogleSignInService {
   /// Stream que emite el id_token de Google cuando el login tiene éxito.
   static Stream<String> get tokenStream => _ctrl.stream;
 
-  /// En móvil no hay HtmlElementView; init() no hace nada.
-  static void init() {}
+  /// Inicializamos la configuración de Google (Obligatorio en v7+)
+  static Future<void> init() async {
+    if (!_inicializado) {
+      // 2. Ya no se usan 'scopes' en la inicialización.
+      // Solo necesitamos el serverClientId para que nos devuelva el idToken.
+      await _googleSignIn.initialize(
+        serverClientId: Config.googleWebClientId,
+      );
+      _inicializado = true;
+    }
+  }
 
   /// Devuelve el botón nativo de Flutter para Android/iOS.
   /// Al pulsarlo lanza el picker de cuentas de Google.
@@ -46,9 +52,16 @@ class _GoogleMobileButtonState extends State<_GoogleMobileButton> {
   Future<void> _signIn() async {
     setState(() => _cargando = true);
     try {
-      final account = await _googleSignIn.signIn();
+      // Aseguramos que esté inicializado antes de autenticar
+      if (!_inicializado) {
+        await GoogleSignInService.init();
+      }
+
+      // 3. Utilizamos authenticate() que lanza el Credential Manager en Android
+      final account = await _googleSignIn.authenticate();
       if (account == null) return; // Usuario canceló
 
+      // 4. Obtenemos la autenticación (contiene el idToken para Python)
       final auth = await account.authentication;
       final idToken = auth.idToken;
 
@@ -60,7 +73,9 @@ class _GoogleMobileButtonState extends State<_GoogleMobileButton> {
       widget.ctrl.add(idToken);
     } catch (e) {
       if (e.toString().contains('canceled') ||
-          e.toString().contains('cancelled')) return;
+          e.toString().contains('cancelled')) {
+        return;
+      }
       _mostrarError('Error con Google Sign-In: $e');
     } finally {
       if (mounted) setState(() => _cargando = false);
@@ -91,9 +106,9 @@ class _GoogleMobileButtonState extends State<_GoogleMobileButton> {
         ),
         icon: _cargando
             ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2))
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.account_circle, color: Color(0xFFEA4335)),
         label: const Text(
           'Continuar con Google',
